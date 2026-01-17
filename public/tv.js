@@ -110,9 +110,29 @@
     render(view);
   }
 
+  let wsDisabled = false;
+  let wsRetryCount = 0;
+  const WS_MAX_RETRIES = 3;
+
   function connectWs() {
-    const ws = new WebSocket(window.Corte.wsUrl("/ws"));
+    if (wsDisabled) return;
+
+    let ws;
+    try {
+      ws = new WebSocket(window.Corte.wsUrl("/ws"));
+    } catch {
+      wsDisabled = true;
+      startPolling();
+      return;
+    }
+
+    const connectionTimeout = setTimeout(() => {
+      ws.close();
+    }, 5000);
+
     ws.addEventListener("open", () => {
+      clearTimeout(connectionTimeout);
+      wsRetryCount = 0;
       stopPolling();
     });
     ws.addEventListener("message", (event) => {
@@ -124,11 +144,18 @@
       }
     });
     ws.addEventListener("error", () => {
+      clearTimeout(connectionTimeout);
       startPolling();
     });
     ws.addEventListener("close", () => {
+      clearTimeout(connectionTimeout);
       startPolling();
-      setTimeout(connectWs, 1000);
+      wsRetryCount += 1;
+      if (wsRetryCount >= WS_MAX_RETRIES) {
+        wsDisabled = true;
+        return;
+      }
+      setTimeout(connectWs, 2000);
     });
   }
 
