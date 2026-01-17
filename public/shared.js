@@ -1,5 +1,6 @@
 (function () {
   const TOKEN_KEY = "corte_admin_token";
+  let inMemoryToken = "";
 
   function wsUrl(pathname) {
     const isHttps = window.location.protocol === "https:";
@@ -9,13 +10,15 @@
 
   function getAuthToken() {
     try {
-      return window.localStorage.getItem(TOKEN_KEY) || "";
+      const fromStorage = window.localStorage.getItem(TOKEN_KEY) || "";
+      return fromStorage || inMemoryToken || "";
     } catch {
-      return "";
+      return inMemoryToken || "";
     }
   }
 
   function setAuthToken(token) {
+    inMemoryToken = String(token || "");
     try {
       if (!token) window.localStorage.removeItem(TOKEN_KEY);
       else window.localStorage.setItem(TOKEN_KEY, token);

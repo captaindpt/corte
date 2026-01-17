@@ -61,8 +61,11 @@
       const data = await window.Corte.getJson("/api/auth/status");
       authEnabled = Boolean(data?.enabled);
       hideAuthOverlay();
-    } catch {
-      // If auth is enabled but our token/cookie isn't accepted, show the overlay.
+    } catch (err) {
+      // If status fails but we already have a token, don't force a re-login loop.
+      // Protected actions will 401 and re-open the overlay when needed.
+      const token = window.Corte.getAuthToken?.() || "";
+      if (token) return;
       authEnabled = true;
       showAuthOverlay();
     }
@@ -76,7 +79,6 @@
       const res = await window.Corte.postJson("/api/auth/login", { password });
       if (res?.token) window.Corte.setAuthToken(res.token);
       hideAuthOverlay();
-      await checkAuthStatus();
       await refreshPreview();
     } catch (err) {
       if (err?.status === 401) {
