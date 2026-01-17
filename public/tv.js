@@ -76,6 +76,10 @@
     els.matches.style.setProperty("--rows", String(grid.rows));
     els.matches.dataset.format = isDoubles ? "doubles" : "singles";
 
+    // Use vertical layout for 2 courts (utilizes vertical space better)
+    const useVerticalLayout = courts === 2;
+    els.matches.dataset.layout = useVerticalLayout ? "vertical" : "horizontal";
+
     els.matches.innerHTML = view.matches
       .map((m) => {
         const sideA = m.sideA ?? (m.player1 != null ? [m.player1] : []);
@@ -94,6 +98,9 @@
         </article>`;
       })
       .join("");
+
+    // Auto-shrink player names that overflow
+    requestAnimationFrame(() => fitPlayerNames());
 
     if (view.bench?.length) {
       els.benchWrap.hidden = false;
@@ -200,4 +207,23 @@
     const content = lines.map((n) => `<div class="playerLine">${escapeHtml(n)}</div>`).join("");
     return `<div class="team team--${align}">${content}</div>`;
   }
+
+  function fitPlayerNames() {
+    const playerLines = document.querySelectorAll(".playerLine");
+    playerLines.forEach((el) => {
+      // Reset shrink level
+      el.removeAttribute("data-shrink");
+
+      // Check if text overflows and progressively shrink
+      for (let level = 0; level <= 5; level++) {
+        if (el.scrollWidth <= el.clientWidth) break;
+        el.setAttribute("data-shrink", String(level + 1));
+      }
+    });
+  }
+
+  // Also fit names on resize
+  window.addEventListener("resize", () => {
+    requestAnimationFrame(() => fitPlayerNames());
+  });
 })();
