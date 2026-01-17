@@ -320,18 +320,27 @@ const STATE_KEY = "corte:state";
 
 function createStateStore() {
   const requested = process.env.STATE_STORE;
-  const useRedis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
-  const type = requested || (useRedis ? "redis" : process.env.VERCEL ? "memory" : "file");
+  const hasRedisUrl = Boolean(process.env.REDIS_URL);
+  const type = requested || (hasRedisUrl ? "redis" : process.env.VERCEL ? "memory" : "file");
 
   if (type === "redis") {
-    const { Redis } = require("@upstash/redis");
-    const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    const Redis = require("ioredis");
+    const redis = new Redis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 3,
+      retryDelayOnFailover: 100,
+      lazyConnect: true,
     });
     let cachedState = null;
     let cacheTime = 0;
     const CACHE_TTL = 500; // 500ms cache to reduce Redis reads
+    let connected = false;
+
+    async function ensureConnected() {
+      if (!connected) {
+        await redis.connect();
+        connected = true;
+      }
+    }
 
     return {
       async load() {
@@ -340,8 +349,10 @@ function createStateStore() {
           return cachedState;
         }
         try {
+          await ensureConnected();
           const stored = await redis.get(STATE_KEY);
-          cachedState = stored ? { ...defaultState(), ...stored } : defaultState();
+          const parsed = stored ? JSON.parse(stored) : null;
+          cachedState = parsed ? { ...defaultState(), ...parsed } : defaultState();
           cacheTime = now;
           return cachedState;
         } catch (err) {
@@ -352,6 +363,7 @@ function createStateStore() {
       async save(nextState) {
         const stateWithVersion = { ...nextState, version: (nextState.version || 0) + 1 };
         try {
+          await ensureConnected();
           await redis.set(STATE_KEY, JSON.stringify(stateWithVersion));
           cachedState = stateWithVersion;
           cacheTime = Date.now();

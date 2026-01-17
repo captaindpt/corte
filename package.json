@@ -9,8 +9,8 @@
     "hash-password": "node scripts/hash-password.js"
   },
   "dependencies": {
-    "@upstash/redis": "^1.36.1",
     "express": "^4.19.2",
+    "ioredis": "^5.9.2",
     "ws": "^8.18.0"
   }
 }
