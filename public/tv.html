@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>corte • TV</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="tv">
+    <div class="tvShell">
+      <header class="tvHeader">
+        <div class="tvTitle">
+          <div class="tvBrand">corte</div>
+          <div class="tvTitleText">
+            <div class="tvTitleMain">Court Matchups</div>
+            <div id="tvMeta" class="tvTitleSub">Add players on /admin</div>
+          </div>
+        </div>
+        <div class="tvRight">
+          <div class="tvCounter" aria-label="Rotation">
+            <div class="tvCounterLabel">Rotation</div>
+            <div id="tvCounter" class="tvCounterValue">--</div>
+          </div>
+          <div id="tvUpdated" class="tvUpdated"></div>
+        </div>
+      </header>
+
+      <main class="tvMain">
+        <section id="matches" class="tvGrid" aria-label="Matches"></section>
+
+        <section id="benchWrap" class="benchWrap" aria-label="Sitting out" hidden>
+          <div class="benchTitle">Sitting out</div>
+          <div id="bench" class="benchList"></div>
+        </section>
+      </main>
+
+      <footer class="tvFooter">
+        <div class="tvHint">Coach: open /admin • TV: /tv</div>
+      </footer>
+    </div>
+
+    <script src="/shared.js"></script>
+    <script src="/tv.js"></script>
+  </body>
+</html>

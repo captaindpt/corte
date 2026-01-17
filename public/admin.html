@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>corte • Admin</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page">
+    <main class="shell shell--narrow">
+      <header class="topbar">
+        <a class="badge badge--link" href="/">corte</a>
+        <div class="topbarMeta">
+          <div id="statusTitle" class="topbarTitle">Waiting…</div>
+          <div id="statusSubtitle" class="topbarSubtitle"></div>
+        </div>
+      </header>
+
+      <section class="card">
+        <label class="fieldLabel" for="players">Players (one per line)</label>
+        <textarea
+          id="players"
+          class="textarea"
+          rows="10"
+          placeholder="Sam\nAlex\nJordan\nTaylor"
+          autocomplete="off"
+          autocapitalize="words"
+          spellcheck="false"
+        ></textarea>
+
+        <div class="row">
+          <div class="field">
+            <label class="fieldLabel" for="format">Format</label>
+            <select id="format" class="input">
+              <option value="singles">1v1 (Singles)</option>
+              <option value="doubles">2v2 (Doubles)</option>
+            </select>
+          </div>
+          <div class="field" id="doublesModeField" hidden>
+            <label class="fieldLabel" for="doublesMode">Teams</label>
+            <select id="doublesMode" class="input">
+              <option value="rotate_players">Rotate players</option>
+              <option value="keep_teams">Keep teams together</option>
+            </select>
+            <div class="helpText">In keep-teams, players are paired 1&2, 3&4…</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label class="fieldLabel" for="courts">Courts</label>
+            <input id="courts" class="input" type="number" min="1" max="24" value="4" />
+          </div>
+          <div class="field">
+            <label class="fieldLabel" for="rotationStep">Rotation Step</label>
+            <input id="rotationStep" class="input" type="number" min="1" max="24" value="4" />
+          </div>
+        </div>
+
+        <div class="buttonRow">
+          <button id="setupBtn" class="button button--primary" type="button">Start / Update</button>
+          <button id="nextBtn" class="button" type="button">Next Rotation</button>
+          <button id="prevBtn" class="button" type="button">Prev Rotation</button>
+        </div>
+        <div class="buttonRow">
+          <button id="shuffleBtn" class="button" type="button">Shuffle Order</button>
+          <button id="resetBtn" class="button button--danger" type="button">Reset</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="sectionTitle">Preview</div>
+        <div id="preview" class="preview"></div>
+      </section>
+
+      <section class="note">
+        TV URL: <span class="mono" id="tvUrl"></span>
+      </section>
+    </main>
+
+    <div id="authOverlay" class="authOverlay" hidden>
+      <div class="authModal card">
+        <div class="sectionTitle">Admin Access</div>
+        <div class="authSubtitle">Enter the password to unlock controls.</div>
+        <label class="fieldLabel" for="adminPassword">Password</label>
+        <input id="adminPassword" class="input" type="password" autocomplete="current-password" />
+        <div class="buttonRow buttonRow--2">
+          <button id="loginBtn" class="button button--primary" type="button">Unlock</button>
+          <button id="cancelLoginBtn" class="button" type="button">Cancel</button>
+        </div>
+        <div id="authError" class="authError" hidden>Wrong password.</div>
+      </div>
+    </div>
+
+    <script src="/shared.js"></script>
+    <script src="/admin.js"></script>
+  </body>
+</html>
