@@ -58,13 +58,13 @@
 
   async function checkAuthStatus() {
     try {
-      const res = await fetch("/api/auth/status", { credentials: "same-origin" });
-      const data = await res.json().catch(() => ({}));
+      const data = await window.Corte.getJson("/api/auth/status");
       authEnabled = Boolean(data?.enabled);
-      if (res.ok) hideAuthOverlay();
-      else if (authEnabled) showAuthOverlay();
+      hideAuthOverlay();
     } catch {
-      // ignore
+      // If auth is enabled but our token/cookie isn't accepted, show the overlay.
+      authEnabled = true;
+      showAuthOverlay();
     }
   }
 
@@ -73,8 +73,10 @@
     els.cancelLoginBtn.disabled = true;
     try {
       const password = String(els.adminPassword.value ?? "");
-      await window.Corte.postJson("/api/auth/login", { password });
+      const res = await window.Corte.postJson("/api/auth/login", { password });
+      if (res?.token) window.Corte.setAuthToken(res.token);
       hideAuthOverlay();
+      await checkAuthStatus();
       await refreshPreview();
     } catch (err) {
       if (err?.status === 401) {

@@ -403,6 +403,12 @@ function parseCookies(req) {
   return cookies;
 }
 
+function parseBearerToken(req) {
+  const header = String(req.headers.authorization ?? "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
 function isHttps(req) {
   if (req.secure) return true;
   const proto = String(req.headers["x-forwarded-proto"] ?? "").toLowerCase();
@@ -455,8 +461,8 @@ function createApp({ onStateChange } = {}) {
     if (!authEnabled) return next();
     const cookies = parseCookies(req);
     const token = cookies[COOKIE_NAME];
-    if (!token) return res.status(401).json({ ok: false, error: "unauthorized" });
-    const payload = verifySessionToken(token, { secret: sessionSecret });
+    const bearer = parseBearerToken(req);
+    const payload = verifySessionToken(token || bearer, { secret: sessionSecret });
     if (!payload) return res.status(401).json({ ok: false, error: "unauthorized" });
     return next();
   }
@@ -481,7 +487,8 @@ function createApp({ onStateChange } = {}) {
     if (!authEnabled) return res.json({ ok: true, enabled: false });
     const cookies = parseCookies(req);
     const token = cookies[COOKIE_NAME];
-    const payload = token ? verifySessionToken(token, { secret: sessionSecret }) : null;
+    const bearer = parseBearerToken(req);
+    const payload = (token || bearer) ? verifySessionToken(token || bearer, { secret: sessionSecret }) : null;
     if (!payload) return res.status(401).json({ ok: false, enabled: true });
     return res.json({ ok: true, enabled: true });
   });
@@ -502,7 +509,7 @@ function createApp({ onStateChange } = {}) {
     ];
     if (isHttps(req)) cookieParts.push("Secure");
     res.setHeader("Set-Cookie", cookieParts.join("; "));
-    return res.json({ ok: true });
+    return res.json({ ok: true, token });
   });
 
   app.post("/api/auth/logout", (req, res) => {
@@ -590,4 +597,3 @@ function createApp({ onStateChange } = {}) {
 }
 
 module.exports = { createApp };
-
