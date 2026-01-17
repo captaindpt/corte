@@ -312,12 +312,55 @@ function defaultState() {
     matchFormat: "singles",
     doublesMode: "rotate_players",
     updatedAt: Date.now(),
+    version: 1,
   };
 }
 
+const STATE_KEY = "corte:state";
+
 function createStateStore() {
   const requested = process.env.STATE_STORE;
-  const type = requested || (process.env.VERCEL ? "memory" : "file");
+  const useKv = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+  const type = requested || (useKv ? "kv" : process.env.VERCEL ? "memory" : "file");
+
+  if (type === "kv") {
+    const { kv } = require("@vercel/kv");
+    let cachedState = null;
+    let cacheTime = 0;
+    const CACHE_TTL = 500; // 500ms cache to reduce KV reads
+
+    return {
+      async load() {
+        const now = Date.now();
+        if (cachedState && now - cacheTime < CACHE_TTL) {
+          return cachedState;
+        }
+        try {
+          const stored = await kv.get(STATE_KEY);
+          cachedState = stored ? { ...defaultState(), ...stored } : defaultState();
+          cacheTime = now;
+          return cachedState;
+        } catch (err) {
+          console.error("KV load error:", err);
+          return cachedState || defaultState();
+        }
+      },
+      async save(nextState) {
+        const stateWithVersion = { ...nextState, version: (nextState.version || 0) + 1 };
+        try {
+          await kv.set(STATE_KEY, stateWithVersion);
+          cachedState = stateWithVersion;
+          cacheTime = Date.now();
+        } catch (err) {
+          console.error("KV save error:", err);
+        }
+        return stateWithVersion;
+      },
+      type,
+      async: true,
+    };
+  }
+
   if (type === "memory") {
     let state = defaultState();
     return {
@@ -325,9 +368,11 @@ function createStateStore() {
         return state;
       },
       save(nextState) {
-        state = nextState;
+        state = { ...nextState, version: (nextState.version || 0) + 1 };
+        return state;
       },
       type,
+      async: false,
     };
   }
 
@@ -345,14 +390,17 @@ function createStateStore() {
       }
     },
     save(nextState) {
+      const stateWithVersion = { ...nextState, version: (nextState.version || 0) + 1 };
       try {
         fs.mkdirSync(dataDir, { recursive: true });
-        fs.writeFileSync(statePath, JSON.stringify(nextState, null, 2) + "\n", "utf8");
+        fs.writeFileSync(statePath, JSON.stringify(stateWithVersion, null, 2) + "\n", "utf8");
       } catch {
         // ignore (serverless / read-only filesystems)
       }
+      return stateWithVersion;
     },
     type,
+    async: false,
   };
 }
 
@@ -448,7 +496,8 @@ function verifySessionToken(token, { secret }) {
 
 function createApp({ onStateChange } = {}) {
   const store = createStateStore();
-  let state = store.load();
+  let state = null; // Will be loaded on first request
+  let stateLoaded = false;
 
   const passwordHash = process.env.ADMIN_PASSWORD_HASH;
   const authEnabled = Boolean(passwordHash && parseScryptHash(passwordHash));
@@ -457,6 +506,20 @@ function createApp({ onStateChange } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "100kb" }));
+
+  // Middleware to ensure state is loaded before handling API requests
+  async function ensureState(req, res, next) {
+    if (!stateLoaded) {
+      state = await Promise.resolve(store.load());
+      stateLoaded = true;
+    } else if (store.async) {
+      // For async stores, always load fresh state on mutating requests
+      if (req.method === "POST") {
+        state = await Promise.resolve(store.load());
+      }
+    }
+    next();
+  }
 
   function requireAdmin(req, res, next) {
     if (!authEnabled) return next();
@@ -480,7 +543,7 @@ function createApp({ onStateChange } = {}) {
     res.sendFile(path.join(PUBLIC_DIR, "tv.html"));
   });
 
-  app.get("/api/view", (req, res) => {
+  app.get("/api/view", ensureState, async (req, res) => {
     res.json(computeView(state));
   });
 
@@ -526,15 +589,15 @@ function createApp({ onStateChange } = {}) {
     return res.json({ ok: true });
   });
 
-  function commit(nextState) {
-    state = { ...nextState, updatedAt: Date.now() };
-    store.save(state);
+  async function commit(nextState) {
+    const stateWithTimestamp = { ...nextState, updatedAt: Date.now() };
+    state = await Promise.resolve(store.save(stateWithTimestamp));
     const view = computeView(state);
     if (typeof onStateChange === "function") onStateChange(view);
     return view;
   }
 
-  app.post("/api/setup", requireAdmin, (req, res) => {
+  app.post("/api/setup", requireAdmin, ensureState, async (req, res) => {
     const players = normalizePlayers(req.body?.players ?? req.body?.playersText);
     const numCourts = clampNumber(req.body?.numCourts, { min: 1, max: 24, fallback: 4 });
     const matchFormat = normalizeMatchFormat(req.body?.matchFormat ?? req.body?.format ?? state.matchFormat);
@@ -547,11 +610,17 @@ function createApp({ onStateChange } = {}) {
       fallback: rotationStepDefault,
     });
 
-    const view = commit({
+    // Preserve roundIndex if only changing settings (not players)
+    const currentPlayers = Array.isArray(state.players) ? state.players : [];
+    const playersChanged = players.length !== currentPlayers.length ||
+      players.some((p, i) => p !== currentPlayers[i]);
+    const roundIndex = playersChanged ? 0 : (state.roundIndex ?? 0);
+
+    const view = await commit({
       ...state,
       players,
       numCourts,
-      roundIndex: 0,
+      roundIndex,
       rotationStep,
       matchFormat,
       doublesMode,
@@ -559,22 +628,22 @@ function createApp({ onStateChange } = {}) {
     res.json(view);
   });
 
-  app.post("/api/next", requireAdmin, (req, res) => {
+  app.post("/api/next", requireAdmin, ensureState, async (req, res) => {
     const view = computeView(state);
     if (view.mode === "round_robin") {
       const totalRounds = generateRoundRobinSchedule(view.players).length || 1;
-      res.json(commit({ ...state, roundIndex: (view.roundIndex + 1) % totalRounds }));
+      res.json(await commit({ ...state, roundIndex: (view.roundIndex + 1) % totalRounds }));
       return;
     }
-    res.json(commit({ ...state, roundIndex: (state.roundIndex ?? 0) + 1 }));
+    res.json(await commit({ ...state, roundIndex: (state.roundIndex ?? 0) + 1 }));
   });
 
-  app.post("/api/prev", requireAdmin, (req, res) => {
+  app.post("/api/prev", requireAdmin, ensureState, async (req, res) => {
     const view = computeView(state);
     if (view.mode === "round_robin") {
       const totalRounds = generateRoundRobinSchedule(view.players).length || 1;
       const nextIndex = (view.roundIndex + totalRounds - 1) % totalRounds;
-      res.json(commit({ ...state, roundIndex: nextIndex }));
+      res.json(await commit({ ...state, roundIndex: nextIndex }));
       return;
     }
     const current = clampNumber(state.roundIndex, {
@@ -582,16 +651,16 @@ function createApp({ onStateChange } = {}) {
       max: Number.MAX_SAFE_INTEGER,
       fallback: 0,
     });
-    res.json(commit({ ...state, roundIndex: Math.max(0, current - 1) }));
+    res.json(await commit({ ...state, roundIndex: Math.max(0, current - 1) }));
   });
 
-  app.post("/api/shuffle", requireAdmin, (req, res) => {
+  app.post("/api/shuffle", requireAdmin, ensureState, async (req, res) => {
     const players = shuffleArray(Array.isArray(state.players) ? state.players : []);
-    res.json(commit({ ...state, players, roundIndex: 0 }));
+    res.json(await commit({ ...state, players, roundIndex: 0 }));
   });
 
-  app.post("/api/reset", requireAdmin, (req, res) => {
-    res.json(commit(defaultState()));
+  app.post("/api/reset", requireAdmin, ensureState, async (req, res) => {
+    res.json(await commit(defaultState()));
   });
 
   return app;

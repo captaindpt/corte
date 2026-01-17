@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/manirashahmadi/corte log --oneline -10)"
+    ]
+  }
+}
