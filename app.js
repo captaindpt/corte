@@ -320,14 +320,18 @@ const STATE_KEY = "corte:state";
 
 function createStateStore() {
   const requested = process.env.STATE_STORE;
-  const useKv = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
-  const type = requested || (useKv ? "kv" : process.env.VERCEL ? "memory" : "file");
+  const useRedis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
+  const type = requested || (useRedis ? "redis" : process.env.VERCEL ? "memory" : "file");
 
-  if (type === "kv") {
-    const { kv } = require("@vercel/kv");
+  if (type === "redis") {
+    const { Redis } = require("@upstash/redis");
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
     let cachedState = null;
     let cacheTime = 0;
-    const CACHE_TTL = 500; // 500ms cache to reduce KV reads
+    const CACHE_TTL = 500; // 500ms cache to reduce Redis reads
 
     return {
       async load() {
@@ -336,23 +340,23 @@ function createStateStore() {
           return cachedState;
         }
         try {
-          const stored = await kv.get(STATE_KEY);
+          const stored = await redis.get(STATE_KEY);
           cachedState = stored ? { ...defaultState(), ...stored } : defaultState();
           cacheTime = now;
           return cachedState;
         } catch (err) {
-          console.error("KV load error:", err);
+          console.error("Redis load error:", err);
           return cachedState || defaultState();
         }
       },
       async save(nextState) {
         const stateWithVersion = { ...nextState, version: (nextState.version || 0) + 1 };
         try {
-          await kv.set(STATE_KEY, stateWithVersion);
+          await redis.set(STATE_KEY, JSON.stringify(stateWithVersion));
           cachedState = stateWithVersion;
           cacheTime = Date.now();
         } catch (err) {
-          console.error("KV save error:", err);
+          console.error("Redis save error:", err);
         }
         return stateWithVersion;
       },
