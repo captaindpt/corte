@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 
+const PUBLIC_DIR = path.join(__dirname, "public");
 const COOKIE_NAME = "corte_admin";
 const SESSION_MAX_AGE_SECONDS = 60 * 90; // 90 minutes
 
@@ -330,7 +331,7 @@ function createStateStore() {
     };
   }
 
-  const dataDir = path.join(process.cwd(), "data");
+  const dataDir = path.join(__dirname, "data");
   const statePath = path.join(dataDir, "state.json");
 
   return {
@@ -467,16 +468,16 @@ function createApp({ onStateChange } = {}) {
     return next();
   }
 
-  app.use(express.static(path.join(process.cwd(), "public")));
+  app.use(express.static(PUBLIC_DIR));
 
   app.get("/", (req, res) => {
-    res.sendFile(path.join(process.cwd(), "public", "index.html"));
+    res.sendFile(path.join(PUBLIC_DIR, "index.html"));
   });
   app.get("/admin", (req, res) => {
-    res.sendFile(path.join(process.cwd(), "public", "admin.html"));
+    res.sendFile(path.join(PUBLIC_DIR, "admin.html"));
   });
   app.get("/tv", (req, res) => {
-    res.sendFile(path.join(process.cwd(), "public", "tv.html"));
+    res.sendFile(path.join(PUBLIC_DIR, "tv.html"));
   });
 
   app.get("/api/view", (req, res) => {
