@@ -4,7 +4,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 
 const COOKIE_NAME = "corte_admin";
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const SESSION_MAX_AGE_SECONDS = 60 * 90; // 90 minutes
 
 function clampNumber(value, { min, max, fallback }) {
   const num = Number(value);

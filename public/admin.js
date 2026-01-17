@@ -87,6 +87,8 @@
       } else if (err?.status === 400) {
         alert("Admin password is not configured on the server.");
         hideAuthOverlay();
+      } else if (err?.status === 404) {
+        alert("Login endpoint not found. If you're on Vercel, make sure the deployment includes `/api/index.js` and `vercel.json`.");
       } else {
         alert(err?.message ?? String(err));
       }

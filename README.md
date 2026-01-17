@@ -54,6 +54,7 @@ npm run hash-password -- "your password"
 ```
 
 2) Set the printed `ADMIN_PASSWORD_HASH` (and optionally `ADMIN_SESSION_SECRET`) in your environment.
+Sessions last 90 minutes by default.
 
 ## Deploy to Vercel
 
